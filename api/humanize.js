@@ -19,6 +19,21 @@ Rewrite rules (these are the exact signals AI detectors measure):
 
 Output ONLY the rewritten text.`;
 
+import admin from "firebase-admin";
+const ADMIN_EMAIL = (process.env.ADMIN_EMAIL || "josephsismart@gmail.com").toLowerCase();
+const GUEST_LIMIT = 500;
+function fb() {
+  if (!process.env.FIREBASE_PROJECT_ID) return null;
+  if (!admin.apps.length) admin.initializeApp({ projectId: process.env.FIREBASE_PROJECT_ID });
+  return admin;
+}
+async function emailFromReq(req) {
+  const h = req.headers.authorization || "";
+  const t = h.startsWith("Bearer ") ? h.slice(7) : null;
+  const a = fb(); if (!t || !a) return null;
+  try { const d = await a.auth().verifyIdToken(t); return (d.email || "").toLowerCase(); } catch { return null; }
+}
+
 const INTENSITY = {
   light:  "Make light edits. Keep most sentences, fix the obvious AI tells.",
   medium: "Rewrite moderately. Restructure about half the sentences.",
@@ -38,7 +53,11 @@ export default async function handler(req, res) {
   const text = (body && body.text || "").toString().trim();
   const mode = INTENSITY[body && body.mode] ? body.mode : "medium";
   if (!text) return res.status(400).json({ error: "text required" });
-  if (text.split(/\s+/).length > 1200) return res.status(413).json({ error: "max 1200 words" });
+  const email = await emailFromReq(req);
+  const isAdmin = email === ADMIN_EMAIL;
+  const n = text.split(/\s+/).length;
+  if (!isAdmin && n > GUEST_LIMIT) return res.status(413).json({ error: `max ${GUEST_LIMIT} words for guests` });
+  if (n > 5000) return res.status(413).json({ error: "max 5000 words" });
 
   const base = (process.env.LLM_BASE_URL || "https://api.groq.com/openai/v1").replace(/\/$/, "");
   const model = process.env.LLM_MODEL || "llama-3.3-70b-versatile";

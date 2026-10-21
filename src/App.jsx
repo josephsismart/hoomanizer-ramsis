@@ -1,5 +1,7 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { humanize, aiScore, words } from './humanizer.js'
+import { enabled as authEnabled, watchAuth, login, logout, isAdmin, idToken, logEvent } from './firebase.js'
+import Admin from './Admin.jsx'
 
 const MODES = [
   { id: 'light', label: 'Light' },
@@ -7,7 +9,7 @@ const MODES = [
   { id: 'strong', label: 'Strong' },
   { id: 'deep', label: 'Deep ✦', title: 'Server LLM rewrite (needs LLM_API_KEY on Vercel)' },
 ]
-const LIMIT = 500
+const GUEST_LIMIT = 500
 
 function Pill({ value }) {
   const cls = value == null ? '' : value >= 60 ? 'bad' : value >= 35 ? 'warn' : 'ok'
@@ -21,6 +23,11 @@ export default function App() {
   const [note, setNote] = useState('')
   const [busy, setBusy] = useState(false)
   const [copied, setCopied] = useState(false)
+  const [user, setUser] = useState(null)
+  const [view, setView] = useState(() => (location.pathname === '/admin' ? 'admin' : 'app'))
+  useEffect(() => watchAuth(setUser), [])
+  const admin = isAdmin(user)
+  const LIMIT = admin ? Infinity : GUEST_LIMIT
 
   const nIn = useMemo(() => words(input), [input])
   const scoreIn = useMemo(() => aiScore(input), [input])
@@ -29,25 +36,29 @@ export default function App() {
 
   async function run() {
     if (!input.trim() || over) return
+    const ev = { mode, words: nIn, preview: input }
     if (mode === 'deep') {
       setBusy(true); setOutput(''); setNote('Rewriting with the model…')
+      let text
       try {
+        const token = await idToken()
         const r = await fetch('/api/humanize', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          method: 'POST', headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
           body: JSON.stringify({ text: input, mode: 'strong' }),
         })
         const d = await r.json()
         if (!r.ok) throw new Error(d.error || 'API error')
-        const { text } = humanize(d.text, 'light')
+        text = humanize(d.text, 'light').text
         setOutput(text); setNote(`Deep rewrite (${d.model})`)
       } catch (e) {
-        const { text, changes } = humanize(input, 'strong')
-        setOutput(text); setNote(`Deep mode unavailable (${e.message}). Used Strong rules — ${changes} edits.`)
+        const r = humanize(input, 'strong'); text = r.text
+        setOutput(text); setNote(`Deep mode unavailable (${e.message}). Used Strong rules — ${r.changes} edits.`)
       }
-      setBusy(false); return
+      setBusy(false); logEvent(user, { ...ev, outWords: words(text) }); return
     }
     const { text, changes } = humanize(input, mode)
     setOutput(text); setNote(`${changes} edits made`)
+    logEvent(user, { ...ev, outWords: words(text) })
   }
 
   function clear() { setInput(''); setOutput(''); setNote('') }
@@ -57,11 +68,34 @@ export default function App() {
     setCopied(true); setTimeout(() => setCopied(false), 1200)
   }
 
+  if (view === 'admin') {
+    if (!admin) return <main><p style={{ textAlign: 'center', marginTop: 60 }}>Admin only. {authEnabled && <button className="btn" onClick={login}>Sign in with Google</button>}</p></main>
+    return <Admin user={user} onBack={() => { history.pushState({}, '', '/'); setView('app') }} />
+  }
+
   return (
     <>
       <header>
         <h1>Hoomanizer</h1>
         <p>Paste AI-generated text, get a more natural rewrite.</p>
+        {authEnabled && (
+          <div className="auth">
+            {user ? (
+              <>
+                {user.photoURL && <img src={user.photoURL} alt="" referrerPolicy="no-referrer" />}
+                <span>{user.email}</span>
+                {admin && <span className="badge">ADMIN · unlimited</span>}
+                {admin && <button className="btn ghost" onClick={() => { history.pushState({}, '', '/admin'); setView('admin') }}>Admin panel</button>}
+                <button className="btn ghost" onClick={logout}>Sign out</button>
+              </>
+            ) : (
+              <>
+                <span>Guests: {GUEST_LIMIT} words per run.</span>
+                <button className="btn ghost" onClick={login}>Sign in with Google</button>
+              </>
+            )}
+          </div>
+        )}
       </header>
       <main>
         <div className="controls">
@@ -75,10 +109,10 @@ export default function App() {
 
         <div className="grid">
           <section className="card">
-            <h2>AI text <span style={{ color: over ? 'var(--bad)' : undefined }}>{nIn} / {LIMIT} words</span></h2>
+            <h2>AI text <span style={{ color: over ? 'var(--bad)' : undefined }}>{nIn}{admin ? ' words' : ` / ${GUEST_LIMIT} words`}</span></h2>
             <textarea value={input} onChange={e => setInput(e.target.value)} placeholder="Paste your text here…" />
             <div className="bar">
-              <span className="meta">Limit {LIMIT} words per run.</span>
+              <span className="meta">{admin ? 'Unlimited words.' : `Limit ${GUEST_LIMIT} words per run.`}</span>
               <div>
                 <button className="btn ghost" onClick={clear}>Clear</button>
                 <button className="btn" onClick={run} disabled={busy || over || nIn === 0}>{busy ? 'Working…' : 'Humanize'}</button>

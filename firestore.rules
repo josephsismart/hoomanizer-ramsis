@@ -1,0 +1,14 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isAdmin() { return request.auth != null && request.auth.token.email == 'josephsismart@gmail.com'; }
+    match /events/{id} {
+      allow create: if true;          // anyone (incl. guests) can log a run
+      allow read, update, delete: if isAdmin();
+    }
+    match /users/{uid} {
+      allow create, update: if request.auth != null && request.auth.uid == uid;
+      allow read: if isAdmin() || (request.auth != null && request.auth.uid == uid);
+    }
+  }
+}

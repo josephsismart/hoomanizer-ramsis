@@ -15,3 +15,21 @@ Static AI-text humanizer with two engines:
 
 ## Verify
 Paste output into GPTZero / Pangram / Copyleaks free checkers. If it still scores AI, hit **Re-roll** (output is non-deterministic) or try a bigger model via `LLM_MODEL`.
+
+## Google login, limits and admin panel (Firebase)
+- Admin (`josephsismart@gmail.com`): unlimited words + `/admin` panel (users + activity log).
+- Everyone else: 500 words per run. Enforced in the UI and in `/api/humanize`.
+- Every run is logged to Firestore `events` (who, mode, word count, 120-char preview, time).
+
+### Setup (once)
+1. console.firebase.google.com → Add project → name it `hoomanizer`.
+2. Build → **Authentication** → Get started → Sign-in method → enable **Google**.
+   Then Authentication → Settings → **Authorized domains** → add `hoomanizer-ramsis.vercel.app`.
+3. Build → **Firestore Database** → Create (production mode, any region).
+   Rules tab → paste the contents of `firestore.rules` → Publish.
+4. Project settings (gear) → General → Your apps → **Web app** (</>) → register → copy the config.
+5. Vercel → project → Settings → Environment Variables → add (see `.env.example`):
+   `VITE_FIREBASE_API_KEY`, `VITE_FIREBASE_AUTH_DOMAIN`, `VITE_FIREBASE_PROJECT_ID`, `VITE_FIREBASE_APP_ID`, `FIREBASE_PROJECT_ID`.
+6. Deployments → Redeploy.
+
+Without these variables the app still works, just with no login (everyone gets 500 words) and no logging.

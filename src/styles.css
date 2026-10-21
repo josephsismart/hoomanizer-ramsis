@@ -30,3 +30,13 @@
   .how b{display:block;margin-bottom:4px}
   footer{text-align:center;color:var(--muted);font-size:12px;padding:30px 16px}
 .pill.ok{background:var(--ok)}.pill.warn{background:var(--warn)}.pill.bad{background:var(--bad)}
+.auth{display:flex;align-items:center;gap:10px;justify-content:center;margin-top:10px;font-size:13px;color:var(--muted)}
+.auth img{width:24px;height:24px;border-radius:50%}
+.auth .btn{padding:6px 12px;font-size:13px}
+.badge{padding:2px 8px;border-radius:999px;background:var(--brand);color:#fff;font-size:11px;font-weight:700}
+.admin .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:12px 0}
+@media(max-width:760px){.admin .stats{grid-template-columns:1fr 1fr}}
+.stat{min-height:0;align-items:center;text-align:center}.stat b{font-size:28px}.stat span{color:var(--muted);font-size:12px}
+.tbl{min-height:0;margin-top:12px;overflow:auto}
+table{width:100%;border-collapse:collapse;font-size:13px}th,td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line);vertical-align:top}th{color:var(--muted);font-weight:600}
+td.prev{max-width:360px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
