@@ -1,4 +1,4 @@
-# Simple AI Humanizer
+# Hoomanizer (React + Vite)
 
 Static AI-text humanizer with two engines:
 
@@ -6,7 +6,7 @@ Static AI-text humanizer with two engines:
 - **Deep ✦** — calls `/api/humanize`, a Vercel serverless function that rewrites with an LLM using a detector-aware prompt (burstiness, perplexity, banned AI vocabulary). This is the mode that gets you near 0% AI on detectors.
 
 ## Deploy to Vercel
-1. Push this folder to GitHub, import at vercel.com/new (framework **Other**, no build step), or run `npx vercel --prod` here.
+1. Push this folder to GitHub, import at vercel.com/new (framework **Vite** (auto-detected)), or run `npx vercel --prod` here.
 2. For Deep mode, add Environment Variables in the Vercel project:
    - `LLM_API_KEY` — e.g. a free key from https://console.groq.com
    - `LLM_BASE_URL` — optional, default `https://api.groq.com/openai/v1` (any OpenAI-compatible API works: OpenAI, Together, DeepSeek, OpenRouter…)
