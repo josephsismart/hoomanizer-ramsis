@@ -25,7 +25,7 @@ const INTENSITY = {
   strong: "Rewrite thoroughly. Every sentence should be restructured, while meaning stays identical.",
 };
 
-module.exports = async (req, res) => {
+export default async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
   if (req.method === "OPTIONS") return res.status(204).end();
   if (req.method !== "POST") return res.status(405).json({ error: "POST only" });
@@ -67,4 +67,4 @@ module.exports = async (req, res) => {
   } catch (e) {
     return res.status(500).json({ error: e.message });
   }
-};
+}
