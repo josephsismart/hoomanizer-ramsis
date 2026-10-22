@@ -44,7 +44,8 @@ export const PHRASES = [
   [/\bgame-changer\b/gi, "big deal"],
   [/\bparamount\b/gi, "key"],
   [/\bessential\b/gi, "needed"],
-  [/\bsignificant(ly)?\b/gi, (m,s)=> s?"a lot":"big"],
+  [/\bmost significant\b/gi, "biggest"],
+  [/\bsignificant(ly)?\b/gi, (m,s)=> s?"a lot":"major"],
   [/\bnumerous\b/gi, "many"],
   [/\bindividuals\b/gi, "people"],
   [/\bimplement(ed|ing|s)?\b/gi, (m,s)=> ({ed:"put in place",ing:"putting in place",s:"puts in place"})[s]||"put in place"],
@@ -71,7 +72,7 @@ export const CONTRACTIONS = [
 ];
 
 export const SYN = {
-  important:["a big deal","worth caring about","what counts","key"],
+  important:["key","a big deal","worth noting"],
   crucial:["key","make-or-break","what matters most"],
   additionally:["Also","Plus","On top of that","And"],
   provide:["give","offer","hand over"], provides:["gives","offers"], provided:["gave","offered"],
@@ -90,10 +91,10 @@ export const SYN = {
   thus:["so","which means"],
   landscape:["scene","field","world"], realm:["area","world"],
   tapestry:["mix","blend"], testament:["proof","a sign"],
-  foster:["build","grow","encourage"], fosters:["builds","grows"],
+  foster:["build","encourage"], fosters:["builds","encourages"],
   journey:["path","process","road"], embark:["start","set out"],
   underscore:["show","point to"], underscores:["shows","points to"],
-  vibrant:["lively","busy"], dynamic:["fast-moving","shifting"],
+  vibrant:["lively","busy"], dynamic:["lively","active"],
   streamline:["simplify","tidy up"], streamlined:["simplified"],
   empower:["let","help"], empowers:["lets","helps"],
   harness:["use","tap"], harnessing:["using","tapping"],
@@ -170,7 +171,7 @@ export function humanize(text, mode){
         changes++; s=s.replace(/[.!?]+$/,"")+", and "+ss[i+1].replace(/^\s*\w/,c=>c.toLowerCase()); i++;
       }
       // occasional casual opener
-      if(level>=2 && i>0 && n>10 && rnd()<[0,0.12,0.22][level-1]){
+      if(level>=2 && i>0 && n>10 && !/^(plus|also|but|so|still|and|then|on top of that|all in all|in short|in the end|all told|because of this|which means|that's why)\b/i.test(s) && rnd()<[0,0.12,0.22][level-1]){
         changes++; s=OPENERS[Math.floor(rnd()*OPENERS.length)]+s.replace(/^\w/,c=>c.toLowerCase());
       }
       // break "same first word" runs (detectors flag repeated openers)

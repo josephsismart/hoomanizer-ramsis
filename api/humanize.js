@@ -4,6 +4,17 @@
 //   LLM_BASE_URL  (optional)  default https://api.groq.com/openai/v1
 //   LLM_MODEL     (optional)  default llama-3.3-70b-versatile
 
+const EDITOR = `You are a line editor doing a final human pass on a rewrite. Keep meaning, facts, names and numbers exactly.
+Do these edits and nothing else:
+- Make sentence lengths uneven. Where two medium sentences sit together, make one short (3-8 words) and one long (25+).
+- Allow one sentence fragment per paragraph if natural. One rhetorical question is allowed in the whole text.
+- Replace any remaining generic phrasing with the concrete detail already present in the source; never invent new facts.
+- Vary paragraph length: at least one paragraph should be a single sentence if there are 3+ paragraphs.
+- Remove every em dash (—), semicolon, and "not only... but also". Remove lists of three used for rhythm.
+- No sentence may start with However, Furthermore, Moreover, Additionally, Overall, Ultimately, In conclusion.
+- Keep contractions. Plain words. Sound like one person talking, not a brochure.
+Output ONLY the edited text.`;
+
 const SYSTEM = `You are a human editor rewriting a draft so it reads like a real person wrote it.
 Your output must keep the same meaning, facts, names, numbers and roughly the same length (±15%).
 
@@ -68,7 +79,7 @@ export default async function handler(req, res) {
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
       body: JSON.stringify({
         model,
-        temperature: 1.0,
+        temperature: 1.1,
         top_p: 0.95,
         frequency_penalty: 0.4,
         presence_penalty: 0.3,
@@ -80,9 +91,20 @@ export default async function handler(req, res) {
     });
     const data = await r.json();
     if (!r.ok) return res.status(502).json({ error: data.error?.message || "upstream error" });
-    let out = (data.choices?.[0]?.message?.content || "").trim();
-    out = out.replace(/^"""|"""$/g, "").replace(/\s*—\s*/g, ", ").trim();
-    return res.status(200).json({ text: out, model });
+    let out = (data.choices?.[0]?.message?.content || "").trim().replace(/^"""|"""$/g, "").trim();
+    // pass 2: editor pass (research: multi-pass rewriting beats single-shot paraphrase)
+    try {
+      const r2 = await fetch(`${base}/chat/completions`, {
+        method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
+        body: JSON.stringify({ model, temperature: 0.9, top_p: 0.95, frequency_penalty: 0.5, presence_penalty: 0.3,
+          messages: [{ role: "system", content: EDITOR }, { role: "user", content: `Source (for facts):\n"""\n${text}\n"""\n\nRewrite to edit:\n"""\n${out}\n"""` }] }),
+      });
+      const d2 = await r2.json();
+      const o2 = (d2.choices?.[0]?.message?.content || "").trim().replace(/^"""|"""$/g, "").trim();
+      if (r2.ok && o2.split(/\s+/).length > out.split(/\s+/).length * 0.6) out = o2;
+    } catch { /* keep pass-1 output */ }
+    out = out.replace(/\s*—\s*/g, ", ").replace(/;\s*/g, ". ").trim();
+    return res.status(200).json({ text: out, model, passes: 2 });
   } catch (e) {
     return res.status(500).json({ error: e.message });
   }

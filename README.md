@@ -33,3 +33,11 @@ Paste output into GPTZero / Pangram / Copyleaks free checkers. If it still score
 6. Deployments → Redeploy.
 
 Without these variables the app still works, just with no login (everyone gets 500 words) and no logging.
+
+## AI detection + plagiarism
+- **AI detection** runs in the browser (`src/detector.js`): 10 statistical signals modelled on what GPTZero/Pangram measure (burstiness, AI lexicon, stock transitions, contractions, tricolons, paragraph shape…). Calibrated: typical ChatGPT paragraphs score 80–96, real human writing 3–10.
+- **Second opinion ✦** calls `/api/detect`, which asks the LLM for an independent 0–100 score (needs `LLM_API_KEY`).
+- **Deep ✦ mode** now does two passes (rewrite → human line-edit) and auto re-rolls up to 3× until the local detector says ≤ 20% AI.
+- **Plagiarism (web)** calls `/api/plagiarism`: searches Google for exact 12-word phrases from the 8 longest sentences and reports matches with links. Needs:
+  - `GOOGLE_CSE_KEY` — API key from console.cloud.google.com (enable "Custom Search API"; free 100 queries/day)
+  - `GOOGLE_CSE_ID` — from programmablesearchengine.google.com → create engine → turn on "Search the entire web" → copy the engine ID

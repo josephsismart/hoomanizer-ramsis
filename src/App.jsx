@@ -1,7 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
-import { humanize, aiScore, words } from './humanizer.js'
+import { humanize, words } from './humanizer.js'
 import { enabled as authEnabled, watchAuth, login, logout, isAdmin, idToken, logEvent } from './firebase.js'
 import Admin from './Admin.jsx'
+import Detector from './Detector.jsx'
+import Plagiarism from './Plagiarism.jsx'
+import { detect } from './detector.js'
 
 const MODES = [
   { id: 'light', label: 'Light' },
@@ -10,11 +13,6 @@ const MODES = [
   { id: 'deep', label: 'Deep ✦', title: 'Server LLM rewrite (needs LLM_API_KEY on Vercel)' },
 ]
 const GUEST_LIMIT = 500
-
-function Pill({ value }) {
-  const cls = value == null ? '' : value >= 60 ? 'bad' : value >= 35 ? 'warn' : 'ok'
-  return <span className={`pill ${cls}`}>{value == null ? '–' : `${value}%`}</span>
-}
 
 export default function App() {
   const [input, setInput] = useState('')
@@ -30,8 +28,6 @@ export default function App() {
   const LIMIT = admin ? Infinity : GUEST_LIMIT
 
   const nIn = useMemo(() => words(input), [input])
-  const scoreIn = useMemo(() => aiScore(input), [input])
-  const scoreOut = useMemo(() => aiScore(output), [output])
   const over = nIn > LIMIT
 
   async function run() {
@@ -42,14 +38,23 @@ export default function App() {
       let text
       try {
         const token = await idToken()
-        const r = await fetch('/api/humanize', {
-          method: 'POST', headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-          body: JSON.stringify({ text: input, mode: 'strong' }),
-        })
-        const d = await r.json()
-        if (!r.ok) throw new Error(d.error || 'API error')
-        text = humanize(d.text, 'light').text
-        setOutput(text); setNote(`Deep rewrite (${d.model})`)
+        let best = null
+        for (let attempt = 1; attempt <= 3; attempt++) {
+          setNote(`Rewriting with the model… (pass ${attempt})`)
+          const r = await fetch('/api/humanize', {
+            method: 'POST', headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+            body: JSON.stringify({ text: input, mode: 'strong' }),
+          })
+          const d = await r.json()
+          if (!r.ok) throw new Error(d.error || 'API error')
+          const cand = humanize(d.text, 'light').text
+          const sc = detect(cand).score ?? 100
+          if (!best || sc < best.sc) best = { text: cand, sc, model: d.model }
+          setOutput(best.text)
+          if (sc <= 20) break
+        }
+        text = best.text
+        setOutput(text); setNote(`Deep rewrite (${best.model}) — ${best.sc}% AI`)
       } catch (e) {
         const r = humanize(input, 'strong'); text = r.text
         setOutput(text); setNote(`Deep mode unavailable (${e.message}). Used Strong rules — ${r.changes} edits.`)
@@ -104,7 +109,7 @@ export default function App() {
               <button key={m.id} title={m.title} className={mode === m.id ? 'on' : ''} onClick={() => setMode(m.id)}>{m.label}</button>
             ))}
           </div>
-          <div className="score">Input AI-pattern score: <Pill value={scoreIn} /> → Output: <Pill value={scoreOut} /></div>
+          <div className="score">Target: output under 20% AI. Deep ✦ auto re-rolls until it gets there.</div>
         </div>
 
         <div className="grid">
@@ -131,6 +136,12 @@ export default function App() {
             </div>
           </section>
         </div>
+
+        <div className="tools">
+          <Detector text={input} label="Input" />
+          <Detector text={output} label="Output" />
+        </div>
+        <Plagiarism text={output || input} />
 
         <div className="how">
           <div><b>1. Paste</b>Drop in text from ChatGPT, Claude, Gemini or any AI tool.</div>
