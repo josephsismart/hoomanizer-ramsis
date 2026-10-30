@@ -16,6 +16,15 @@ Static AI-text humanizer with two engines:
 ## Verify
 Paste output into GPTZero / Pangram / Copyleaks free checkers. If it still scores AI, hit **Re-roll** (output is non-deterministic) or try a bigger model via `LLM_MODEL`.
 
+## Deep ✦ mode providers (all free)
+Deep mode works **with no key at all** (Pollinations GPT-OSS, 1 request / 30 s per IP, ~10–25 s per rewrite). For faster, better, unlimited rewrites add ONE of these free keys in Vercel → Settings → Environment Variables, then Redeploy:
+- `GEMINI_API_KEY` — aistudio.google.com → Get API key (free, no card; ~1500 rewrites/day). **Recommended.**
+- `OPENROUTER_API_KEY` — openrouter.ai → Keys (free models)
+- `LLM_API_KEY` (+ `LLM_BASE_URL`, `LLM_MODEL`) — Groq, Cerebras, OpenAI or any OpenAI-compatible API
+Providers are tried in that order; the keyless one is the fallback.
+
+Tasks: **Humanize** (reads like a person wrote it) and **Remove plagiarism** (restructures every sentence so wording no longer matches the source, then humanizes). Both keep facts and add nothing.
+
 ## Google login, limits and admin panel (Firebase)
 - Admin (`josephsismart@gmail.com`): unlimited words + `/admin` panel (users + activity log).
 - Everyone else: 500 words per run. Enforced in the UI and in `/api/humanize`.

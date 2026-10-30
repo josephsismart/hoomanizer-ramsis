@@ -25,17 +25,17 @@ export const PHRASES = [
   [/\bcommenc(e|es|ed|ing)\b/gi, (m,s)=> ({e:"start",es:"starts",ed:"started",ing:"starting"})[s]],
   [/\bendeavor(s)?\b/gi, (m,s)=> s?"efforts":"effort"],
   [/\bsubsequently\b/gi, "later"],
-  [/\badditionally,?\s*/gi, "Also, "],
-  [/\bfurthermore,?\s*/gi, "On top of that, "],
-  [/\bmoreover,?\s*/gi, "Plus, "],
-  [/\bconsequently,?\s*/gi, "So "],
-  [/\btherefore,?\s*/gi, "So "],
-  [/\bin conclusion,?\s*/gi, "All in all, "],
-  [/\bto summarize,?\s*/gi, "In short, "],
-  [/\bultimately,?\s*/gi, "In the end, "],
-  [/\boverall,?\s*/gi, "All told, "],
-  [/\bnevertheless,?\s*/gi, "Still, "],
-  [/\bhowever,?\s*/gi, "But "],
+  [/(^|[.!?]\s+)additionally,?\s*/gi, (m,p)=>p+"Also, "],
+  [/(^|[.!?]\s+)furthermore,?\s*/gi, (m,p)=>p+"On top of that, "],
+  [/(^|[.!?]\s+)moreover,?\s*/gi, (m,p)=>p+"Plus, "],
+  [/(^|[.!?]\s+)consequently,?\s*/gi, (m,p)=>p+"So "],
+  [/(^|[.!?]\s+)therefore,?\s*/gi, (m,p)=>p+"So "],
+  [/(^|[.!?]\s+)in conclusion,?\s*/gi, (m,p)=>p+"All in all, "],
+  [/(^|[.!?]\s+)to summarize,?\s*/gi, (m,p)=>p+"In short, "],
+  [/(^|[.!?]\s+)ultimately,?\s*/gi, (m,p)=>p+"In the end, "],
+  [/(^|[.!?]\s+)overall,?\s*/gi, (m,p)=>p+"All told, "],
+  [/(^|[.!?]\s+)nevertheless,?\s*/gi, (m,p)=>p+"Still, "],
+  [/(^|[.!?]\s+)however,?\s*/gi, (m,p)=>p+"But "],
   [/\bcomprehensive\b/gi, "thorough"],
   [/\brobust\b/gi, "solid"],
   [/\bseamless(ly)?\b/gi, (m,s)=> s?"smoothly":"smooth"],
@@ -58,7 +58,7 @@ export const PHRASES = [
   [/\bprior to\b/gi, "before"],
   [/\bin terms of\b/gi, "for"],
   [/\bwith regard to\b/gi, "about"],
-  [/\bas a result,?\s*/gi, "Because of this, "],
+  [/(^|[.!?]\s+)as a result,?\s*/gi, (m,p)=>p+"Because of this, "],
   [/\bthis is because\b/gi, "that's because"],
   [/\bit is (clear|evident) that\b/gi, "clearly"],
   [/\bnot only ([^,]+), but also\b/gi, "$1, and also"],
@@ -168,7 +168,7 @@ export function humanize(text, mode){
       }
       // merge two short sentences
       if(n<7 && i+1<ss.length && words(ss[i+1])<9 && rnd()<0.5 && level>=2){
-        changes++; s=s.replace(/[.!?]+$/,"")+", and "+ss[i+1].replace(/^\s*\w/,c=>c.toLowerCase()); i++;
+        changes++; const nxt=ss[i+1].replace(/^(but|and|so|also|plus|still|then|yet)\s+/i,"").replace(/^\s*\w/,c=>c.toLowerCase()); s=s.replace(/[.!?]+$/,"")+", and "+nxt; i++;
       }
       // occasional casual opener
       if(level>=2 && i>0 && n>10 && !/^(plus|also|but|so|still|and|then|on top of that|all in all|in short|in the end|all told|because of this|which means|that's why)\b/i.test(s) && rnd()<[0,0.12,0.22][level-1]){

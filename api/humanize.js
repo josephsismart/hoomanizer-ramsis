@@ -29,6 +29,11 @@ Rewrite rules (these are the exact signals AI detectors measure):
 7. Sound like one specific person with a point of view, not a style guide. Plain words over fancy ones.
 8. Do not add new claims, opinions or examples that were not in the source. Do not address the reader. Do not add a title or commentary.
 
+Example of the target style (notice the short sentences, the contractions, the uneven rhythm):
+SOURCE: "Effective time management is essential for students. It allows them to balance academic responsibilities with personal activities, reducing stress and improving overall performance. Furthermore, developing these skills early prepares them for future professional environments."
+REWRITE: "Students need to manage their time. When they do, schoolwork and the rest of life stop fighting each other, stress drops, and performance tends to go up with it. And the habit pays off later, because it's what professional environments expect."
+(Every sentence in the rewrite maps to a sentence in the source. Nothing was added. Do the same: no extra sentences, no "it works", no "experts say", no new examples.)
+
 Output ONLY the rewritten text.`;
 
 import admin from "firebase-admin";
@@ -69,10 +74,10 @@ export async function chat(messages, opts = {}) {
       if (p.key) headers.Authorization = `Bearer ${p.key}`;
       if (p.name === "openrouter") headers["HTTP-Referer"] = "https://hoomanizer-ramsis.vercel.app";
       const body = { model: p.model, messages, temperature: opts.temperature ?? 1.0, top_p: 0.95 };
-      if (p.free) body.reasoning_effort = "low";
+      if (p.free) { body.reasoning_effort = process.env.FREE_REASONING || "medium"; body.max_tokens = 4000; body.seed = Math.floor(Math.random() * 1e9); }
       else if (p.name !== "gemini") { body.frequency_penalty = opts.frequency_penalty ?? 0.4; body.presence_penalty = 0.3; }
       if (opts.json) body.response_format = { type: "json_object" };
-      const ctl = new AbortController(); const t = setTimeout(() => ctl.abort(), opts.timeoutMs ?? 25000);
+      const ctl = new AbortController(); const t = setTimeout(() => ctl.abort(), opts.timeoutMs ?? 50000);
       const r = await fetch(p.url, { method: "POST", headers, body: JSON.stringify(body), signal: ctl.signal }).finally(() => clearTimeout(t));
       const d = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(d.error?.message || d.error || `${p.name} error ${r.status}`);
@@ -93,6 +98,11 @@ Human style (detectors measure this):
 - Banned: delve, leverage, utilize, robust, seamless, comprehensive, crucial, pivotal, vital, foster, enhance, facilitate, landscape, realm, tapestry, testament, underscore, navigate, embark, meanwhile, moreover, furthermore, additionally, however, ultimately, overall, in conclusion, remarkable, significant, stubborn, arena, agenda.
 - No em dashes, no semicolons, no lists of three for rhythm, no "not only... but also". You may start a sentence with And, But or So.
 - Sound like one person explaining it, not a report.
+
+Example of the target style (notice the short sentences, the contractions, the uneven rhythm):
+SOURCE: "Effective time management is essential for students. It allows them to balance academic responsibilities with personal activities, reducing stress and improving overall performance. Furthermore, developing these skills early prepares them for future professional environments."
+REWRITE: "Students need to manage their time. When they do, schoolwork and the rest of life stop fighting each other, stress drops, and performance tends to go up with it. And the habit pays off later, because it's what professional environments expect."
+(Every sentence in the rewrite maps to a sentence in the source. Nothing was added. Do the same: no extra sentences, no "it works", no "experts say", no new examples.)
 Output ONLY the rewritten text.`;
 
 const INTENSITY = {
