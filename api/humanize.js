@@ -84,13 +84,15 @@ export async function chat(messages, opts = {}) {
   throw lastErr || new Error("no LLM provider available");
 }
 
-const PARAPHRASE = `You are rewriting text so it is original: it must NOT match the source wording. Keep every fact, name, number and the overall meaning.
-Rules:
-1. Change the sentence structure of EVERY sentence: reorder clauses, split or merge sentences, switch active/passive, start from a different point.
-2. Replace wording throughout. No run of 4+ consecutive words may be copied from the source except names, titles, numbers and technical terms.
-3. Keep paragraph order and roughly the same length (±15%).
-4. Write like a person: uneven sentence lengths, contractions, plain words. No em dashes, no semicolons, no lists of three, no "not only... but also".
-5. Do not add new claims. Do not address the reader. No title, no commentary.
+const PARAPHRASE = `You are rewriting text so it is original (does not match the source wording) AND reads like a real person wrote it.
+HARD RULE: keep exactly the same facts, claims, names and numbers. Do NOT add any example, detail, place, action or opinion that is not in the source. If the source says "infrastructure", do not list roads or rail. Same paragraph order, roughly the same length (±15%).
+Originality: restructure EVERY sentence (reorder clauses, split or merge, change the starting point) and replace the wording. No run of 4+ consecutive words may be copied from the source except names, titles, numbers and technical terms.
+Human style (detectors measure this):
+- Sentence lengths must be uneven: in every paragraph include at least one sentence of 3-7 words and one of 25+ words. Never three similar-length sentences in a row.
+- Use contractions (it's, don't, that's). Plain everyday words over formal ones.
+- Banned: delve, leverage, utilize, robust, seamless, comprehensive, crucial, pivotal, vital, foster, enhance, facilitate, landscape, realm, tapestry, testament, underscore, navigate, embark, meanwhile, moreover, furthermore, additionally, however, ultimately, overall, in conclusion, remarkable, significant, stubborn, arena, agenda.
+- No em dashes, no semicolons, no lists of three for rhythm, no "not only... but also". You may start a sentence with And, But or So.
+- Sound like one person explaining it, not a report.
 Output ONLY the rewritten text.`;
 
 const INTENSITY = {
