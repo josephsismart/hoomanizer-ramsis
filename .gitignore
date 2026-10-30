@@ -2,3 +2,4 @@ node_modules
 dist
 .vercel
 .env*
+deep_out.txt
