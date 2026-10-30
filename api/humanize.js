@@ -74,7 +74,7 @@ export async function chat(messages, opts = {}) {
       if (p.key) headers.Authorization = `Bearer ${p.key}`;
       if (p.name === "openrouter") headers["HTTP-Referer"] = "https://hoomanizer-ramsis.vercel.app";
       const body = { model: p.model, messages, temperature: opts.temperature ?? 1.0, top_p: 0.95 };
-      if (p.free) { body.reasoning_effort = process.env.FREE_REASONING || "medium"; body.max_tokens = 4000; body.seed = Math.floor(Math.random() * 1e9); }
+      if (p.free) { body.reasoning_effort = process.env.FREE_REASONING || "medium"; body.max_tokens = 12000; body.seed = Math.floor(Math.random() * 1e9); }
       else if (p.name !== "gemini") { body.frequency_penalty = opts.frequency_penalty ?? 0.4; body.presence_penalty = 0.3; }
       if (opts.json) body.response_format = { type: "json_object" };
       const ctl = new AbortController(); const t = setTimeout(() => ctl.abort(), opts.timeoutMs ?? 50000);
