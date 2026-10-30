@@ -8,18 +8,19 @@ const EDITOR = `You are a line editor doing a final human pass on a rewrite. Kee
 Do these edits and nothing else:
 - Make sentence lengths uneven. Where two medium sentences sit together, make one short (3-8 words) and one long (25+).
 - Allow one sentence fragment per paragraph if natural. One rhetorical question is allowed in the whole text.
-- Replace any remaining generic phrasing with the concrete detail already present in the source; never invent new facts.
+- Never invent facts, examples or actions. Only details already in the source may appear.
 - Vary paragraph length: at least one paragraph should be a single sentence if there are 3+ paragraphs.
 - Remove every em dash (—), semicolon, and "not only... but also". Remove lists of three used for rhythm.
 - No sentence may start with However, Furthermore, Moreover, Additionally, Overall, Ultimately, In conclusion.
 - Keep contractions. Plain words. Sound like one person talking, not a brochure.
 Output ONLY the edited text.`;
 
-const SYSTEM = `You are a human editor rewriting a draft so it reads like a real person wrote it.
-Your output must keep the same meaning, facts, names, numbers and roughly the same length (±15%).
+const SYSTEM = `You are a human editor rewriting a draft so it reads like a real person wrote it AND so the wording is original (not matching the source).
+HARD RULE: keep exactly the same facts, claims, names, numbers and examples. Do NOT add any new example, detail, action, opinion or claim that is not in the source. If the source is general, stay general. Same paragraph order, roughly the same length (±15%).
+Originality: change the structure of every sentence and replace the wording. No run of 4+ consecutive words may be copied from the source except names, titles, numbers and technical terms.
 
 Rewrite rules (these are the exact signals AI detectors measure):
-1. BURSTINESS: mix sentence lengths hard. Some 4-7 word sentences. Some 25+ word sentences. Never three sentences of similar length in a row.
+1. BURSTINESS: mix sentence lengths hard. Include at least one sentence of 3-7 words and at least one of 25+ words in every paragraph. Never three sentences of similar length in a row.
 2. PERPLEXITY: prefer slightly unexpected but natural word choices over the most obvious word. Use concrete, specific wording. Avoid stock phrasing.
 3. Kill AI vocabulary: delve, leverage, utilize, robust, seamless, comprehensive, crucial, pivotal, vital, foster, enhance, facilitate, landscape, realm, tapestry, testament, underscore, navigate, embark, journey, game-changer, cutting-edge, in today's world, it is important to note, in conclusion, furthermore, moreover, additionally, ultimately, overall.
 4. No em dashes (—). No semicolons. No colons introducing lists. No bullet points. No "Not only X but also Y". No tricolons (lists of three for rhythm).
@@ -45,6 +46,53 @@ async function emailFromReq(req) {
   try { const d = await a.auth().verifyIdToken(t); return (d.email || "").toLowerCase(); } catch { return null; }
 }
 
+// Provider chain: tried in order, next one on error/rate-limit. All free tiers.
+//   GEMINI_API_KEY      aistudio.google.com  (free: ~15 req/min, 1500/day)
+//   OPENROUTER_API_KEY  openrouter.ai        (free models, ~50-200 req/day)
+//   LLM_API_KEY (+LLM_BASE_URL, LLM_MODEL)   any OpenAI-compatible (Groq, OpenAI, Cerebras...)
+//   Pollinations (no key)                    1 request / 30s per IP, always available
+function providers() {
+  const list = [];
+  if (process.env.GEMINI_API_KEY) list.push({ name: "gemini", url: "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions", key: process.env.GEMINI_API_KEY, model: process.env.GEMINI_MODEL || "gemini-2.0-flash" });
+  if (process.env.OPENROUTER_API_KEY) list.push({ name: "openrouter", url: "https://openrouter.ai/api/v1/chat/completions", key: process.env.OPENROUTER_API_KEY, model: process.env.OPENROUTER_MODEL || "meta-llama/llama-3.3-70b-instruct:free" });
+  if (process.env.LLM_API_KEY) list.push({ name: "custom", url: (process.env.LLM_BASE_URL || "https://api.groq.com/openai/v1").replace(/\/$/, "") + "/chat/completions", key: process.env.LLM_API_KEY, model: process.env.LLM_MODEL || "llama-3.3-70b-versatile" });
+  list.push({ name: "pollinations", url: "https://text.pollinations.ai/openai", key: null, model: "openai", free: true });
+  return list;
+}
+export const hasFastProvider = () => providers().some(p => !p.free);
+
+export async function chat(messages, opts = {}) {
+  let lastErr;
+  for (const p of providers()) {
+    try {
+      const headers = { "Content-Type": "application/json" };
+      if (p.key) headers.Authorization = `Bearer ${p.key}`;
+      if (p.name === "openrouter") headers["HTTP-Referer"] = "https://hoomanizer-ramsis.vercel.app";
+      const body = { model: p.model, messages, temperature: opts.temperature ?? 1.0, top_p: 0.95 };
+      if (p.free) body.reasoning_effort = "low";
+      else if (p.name !== "gemini") { body.frequency_penalty = opts.frequency_penalty ?? 0.4; body.presence_penalty = 0.3; }
+      if (opts.json) body.response_format = { type: "json_object" };
+      const ctl = new AbortController(); const t = setTimeout(() => ctl.abort(), opts.timeoutMs ?? 25000);
+      const r = await fetch(p.url, { method: "POST", headers, body: JSON.stringify(body), signal: ctl.signal }).finally(() => clearTimeout(t));
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(d.error?.message || d.error || `${p.name} error ${r.status}`);
+      const out = (d.choices?.[0]?.message?.content || "").trim().replace(/^"""|"""$/g, "").trim();
+      if (!out) throw new Error(`${p.name}: empty response`);
+      return { text: out, model: `${p.model} via ${p.name}`, free: !!p.free };
+    } catch (e) { lastErr = e; }
+  }
+  throw lastErr || new Error("no LLM provider available");
+}
+
+const PARAPHRASE = `You are rewriting text so it is original: it must NOT match the source wording. Keep every fact, name, number and the overall meaning.
+Rules:
+1. Change the sentence structure of EVERY sentence: reorder clauses, split or merge sentences, switch active/passive, start from a different point.
+2. Replace wording throughout. No run of 4+ consecutive words may be copied from the source except names, titles, numbers and technical terms.
+3. Keep paragraph order and roughly the same length (±15%).
+4. Write like a person: uneven sentence lengths, contractions, plain words. No em dashes, no semicolons, no lists of three, no "not only... but also".
+5. Do not add new claims. Do not address the reader. No title, no commentary.
+Output ONLY the rewritten text.`;
+
 const INTENSITY = {
   light:  "Make light edits. Keep most sentences, fix the obvious AI tells.",
   medium: "Rewrite moderately. Restructure about half the sentences.",
@@ -56,13 +104,11 @@ export default async function handler(req, res) {
   if (req.method === "OPTIONS") return res.status(204).end();
   if (req.method !== "POST") return res.status(405).json({ error: "POST only" });
 
-  const key = process.env.LLM_API_KEY;
-  if (!key) return res.status(503).json({ error: "LLM_API_KEY not configured" });
-
   let body = req.body;
   if (typeof body === "string") { try { body = JSON.parse(body); } catch { body = {}; } }
   const text = (body && body.text || "").toString().trim();
   const mode = INTENSITY[body && body.mode] ? body.mode : "medium";
+  const task = body?.task === "paraphrase" ? "paraphrase" : "humanize";
   if (!text) return res.status(400).json({ error: "text required" });
   const email = await emailFromReq(req);
   const isAdmin = email === ADMIN_EMAIL;
@@ -70,41 +116,17 @@ export default async function handler(req, res) {
   if (!isAdmin && n > GUEST_LIMIT) return res.status(413).json({ error: `max ${GUEST_LIMIT} words for guests` });
   if (n > 5000) return res.status(413).json({ error: "max 5000 words" });
 
-  const base = (process.env.LLM_BASE_URL || "https://api.groq.com/openai/v1").replace(/\/$/, "");
-  const model = process.env.LLM_MODEL || "llama-3.3-70b-versatile";
-
   try {
-    const r = await fetch(`${base}/chat/completions`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
-      body: JSON.stringify({
-        model,
-        temperature: 1.1,
-        top_p: 0.95,
-        frequency_penalty: 0.4,
-        presence_penalty: 0.3,
-        messages: [
-          { role: "system", content: SYSTEM },
-          { role: "user", content: `${INTENSITY[mode]}\n\nDraft:\n"""\n${text}\n"""` },
-        ],
-      }),
-    });
-    const data = await r.json();
-    if (!r.ok) return res.status(502).json({ error: data.error?.message || "upstream error" });
-    let out = (data.choices?.[0]?.message?.content || "").trim().replace(/^"""|"""$/g, "").trim();
-    // pass 2: editor pass (research: multi-pass rewriting beats single-shot paraphrase)
-    try {
-      const r2 = await fetch(`${base}/chat/completions`, {
-        method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
-        body: JSON.stringify({ model, temperature: 0.9, top_p: 0.95, frequency_penalty: 0.5, presence_penalty: 0.3,
-          messages: [{ role: "system", content: EDITOR }, { role: "user", content: `Source (for facts):\n"""\n${text}\n"""\n\nRewrite to edit:\n"""\n${out}\n"""` }] }),
-      });
-      const d2 = await r2.json();
-      const o2 = (d2.choices?.[0]?.message?.content || "").trim().replace(/^"""|"""$/g, "").trim();
-      if (r2.ok && o2.split(/\s+/).length > out.split(/\s+/).length * 0.6) out = o2;
-    } catch { /* keep pass-1 output */ }
+    const sys = task === "paraphrase" ? PARAPHRASE : SYSTEM;
+    const user = task === "paraphrase" ? `Rewrite this so it is original and does not match the source:\n"""\n${text}\n"""` : `${INTENSITY[mode]}\n\nDraft:\n"""\n${text}\n"""`;
+    let { text: out, model, free } = await chat([{ role: "system", content: sys }, { role: "user", content: user }], { temperature: 1.1 });
+    // pass 2 only on fast paid providers (free model is too slow for two passes inside Vercel's limit)
+    if (hasFastProvider()) try {
+      const r2 = await chat([{ role: "system", content: EDITOR }, { role: "user", content: `Source (for facts):\n"""\n${text}\n"""\n\nRewrite to edit:\n"""\n${out}\n"""` }], { temperature: 0.9, frequency_penalty: 0.5 });
+      if (r2.text.split(/\s+/).length > out.split(/\s+/).length * 0.6) out = r2.text;
+    } catch { /* keep pass-1 */ }
     out = out.replace(/\s*—\s*/g, ", ").replace(/;\s*/g, ". ").trim();
-    return res.status(200).json({ text: out, model, passes: 2 });
+    return res.status(200).json({ text: out, model, free, task });
   } catch (e) {
     return res.status(500).json({ error: e.message });
   }

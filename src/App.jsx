@@ -21,6 +21,7 @@ export default function App() {
   const [note, setNote] = useState('')
   const [busy, setBusy] = useState(false)
   const [copied, setCopied] = useState(false)
+  const [task, setTask] = useState('humanize') // 'humanize' | 'paraphrase'
   const [user, setUser] = useState(null)
   const [view, setView] = useState(() => (location.pathname === '/admin' ? 'admin' : 'app'))
   useEffect(() => watchAuth(setUser), [])
@@ -32,34 +33,35 @@ export default function App() {
 
   async function run() {
     if (!input.trim() || over) return
-    const ev = { mode, words: nIn, preview: input }
+    const ev = { mode, task, words: nIn, preview: input }
     if (mode === 'deep') {
       setBusy(true); setOutput(''); setNote('Rewriting with the model…')
       let text
       try {
         const token = await idToken()
         let best = null
-        for (let attempt = 1; attempt <= 3; attempt++) {
-          setNote(`Rewriting with the model… (pass ${attempt})`)
+        const maxTries = 3
+        for (let attempt = 1; attempt <= maxTries; attempt++) {
+          setNote(attempt === 1 ? 'Rewriting with the model…' : `Still above 20%, trying again (${attempt}/${maxTries})…`)
           const r = await fetch('/api/humanize', {
             method: 'POST', headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-            body: JSON.stringify({ text: input, mode: 'strong' }),
+            body: JSON.stringify({ text: input, mode: 'strong', task }),
           })
           const d = await r.json()
-          if (!r.ok) throw new Error(d.error || 'API error')
+          if (!r.ok) { if (best) break; throw new Error(d.error || 'API error') }
           const cand = humanize(d.text, 'light').text
           const sc = detect(cand).score ?? 100
           if (!best || sc < best.sc) best = { text: cand, sc, model: d.model }
           setOutput(best.text)
-          if (sc <= 20) break
+          if (sc <= 20 || d.free) break // free endpoint allows 1 request / 30s, so no re-roll
         }
         text = best.text
-        setOutput(text); setNote(`Deep rewrite (${best.model}) — ${best.sc}% AI`)
+        setOutput(text); setNote(`Deep ${task === 'paraphrase' ? 'paraphrase' : 'rewrite'} · ${best.sc}% AI · ${best.model}`)
       } catch (e) {
         const r = humanize(input, 'strong'); text = r.text
-        setOutput(text); setNote(`Deep mode unavailable (${e.message}). Used Strong rules — ${r.changes} edits.`)
+        setOutput(text); setNote(`Model busy (${e.message}). Used Strong rules instead — try Deep again in 30s.`)
       }
-      setBusy(false); logEvent(user, { ...ev, outWords: words(text) }); return
+      setBusy(false); logEvent(user, { ...ev, task, outWords: words(text) }); return
     }
     const { text, changes } = humanize(input, mode)
     setOutput(text); setNote(`${changes} edits made`)
@@ -109,7 +111,11 @@ export default function App() {
               <button key={m.id} title={m.title} className={mode === m.id ? 'on' : ''} onClick={() => setMode(m.id)}>{m.label}</button>
             ))}
           </div>
-          <div className="score">Target: output under 20% AI. Deep ✦ auto re-rolls until it gets there.</div>
+          <div className="seg">
+            <button className={task === 'humanize' ? 'on' : ''} onClick={() => setTask('humanize')} title="Make it read like a person wrote it">Humanize</button>
+            <button className={task === 'paraphrase' ? 'on' : ''} onClick={() => setTask('paraphrase')} title="Rewrite so wording no longer matches the source (Deep ✦ only)">Remove plagiarism</button>
+          </div>
+          <div className="score">Target: under 20% AI. Deep ✦ rewrites with a free AI model, no key needed.</div>
         </div>
 
         <div className="grid">
