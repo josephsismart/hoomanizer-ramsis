@@ -138,6 +138,9 @@ export default async function handler(req, res) {
       if (r2.text.split(/\s+/).length > out.split(/\s+/).length * 0.6) out = r2.text;
     } catch { /* keep pass-1 */ }
     out = out.replace(/\s*—\s*/g, ", ").replace(/;\s*/g, ". ").trim();
+    // guard: free model sometimes returns a truncated fragment
+    const inW = text.split(/\s+/).length, outW = out.split(/\s+/).length;
+    if (outW < inW * 0.6 || !/[.!?]["')\]]?$/.test(out)) return res.status(502).json({ error: "Model returned an incomplete rewrite, please try again in 30s" });
     return res.status(200).json({ text: out, model, free, task });
   } catch (e) {
     return res.status(500).json({ error: e.message });
